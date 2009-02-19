@@ -26,7 +26,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.]]
 local GetTime = GetTime
 local GetSpellCooldown = GetSpellCooldown
 local GetSpellName = GetSpellName
-local pi = math.pi()
+local pi = math.pi/2
 local math_sin = math.sin
 
 local addon = CreateFrame("Frame", nil, UIParent)
@@ -89,7 +89,7 @@ addon:SetScript("OnUpdate", function(self, elapsed)
 	-- Update watched timers
 	local time = GetTime()
 	for spell, finish in pairs(self.watched) do
-		if t > finish then
+		if time > finish then
 			table.insert(self.queue, spell)
 			self.watched[spell] = nil
 		end
