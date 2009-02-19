@@ -1,0 +1,4 @@
+## Interface: 30000
+## Author: Zariel
+
+core.lua
