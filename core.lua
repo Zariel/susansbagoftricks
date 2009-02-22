@@ -33,11 +33,13 @@ local addon = CreateFrame("Frame", nil, UIParent)
 local t = addon:CreateTexture(nil, "OVERLAY")
 
 local size = 125
+local alpha = 0.8
 
 t:SetHeight(size)
 t:SetWidth(size)
 t:SetPoint("CENTER", UIParent, "CENTER")
 t:SetAlpha(0)
+t:SetTexCoord(0.07, 0.93, 0.07, 0.93)
 t:Hide()
 
 addon.icon = t
@@ -64,7 +66,6 @@ addon.spells = {
 	["Stealth"] = true,
 	["Evasion"] = true,
 	["Blind"] = true,
-	["Cheap Shot"] = true,
 	["Kindey Shot"] = true,
 	["Cold Blood"] = true,
 	["Shadow Step"] = true,
@@ -97,7 +98,7 @@ addon:SetScript("OnUpdate", function(self, elapsed)
 
 	-- Are we running allready?
 	if self.running then
-		self.timer = self.timer + (elapsed * 1.5)
+		self.timer = self.timer + (elapsed * 1.35)
 		local s = math_sin(self.timer)
 		if self.timer > pi then
 			self.icon:SetAlpha(0)
@@ -109,7 +110,7 @@ addon:SetScript("OnUpdate", function(self, elapsed)
 		else
 			self.icon:SetHeight(s * size)
 			self.icon:SetWidth(s * size)
-			self.icon:SetAlpha(s)
+			self.icon:SetAlpha(s * alpha)
 			return
 		end
 	end
