@@ -29,11 +29,13 @@ local GetSpellName = GetSpellName
 local pi = math.pi/2
 local math_sin = math.sin
 
+local playerName = UnitName("player")
+
 local addon = CreateFrame("Frame", nil, UIParent)
 local t = addon:CreateTexture(nil, "OVERLAY")
 
-local size = 125
-local alpha = 0.8
+local size = 175
+local alpha = 0.85
 
 t:SetHeight(size)
 t:SetWidth(size)
@@ -49,38 +51,105 @@ addon.running = false
 addon.watched = {}
 addon.timer = 0
 
-addon.spells = {
-	-- Undead
-	["Will of the Forsaken"] = true,
-	["Cannibalize"] = true,
+addon.spells = {}
 
-	-- Rogue
-	["Riposte"] = true,
-	["Gouge"] = true,
-	["Blade Flurry"] = true,
-	["Adrenaline Rush"] = true,
-	["Killing Spree"] = true,
-	["Kick"] = true,
-	["Vanish"] = true,
-	["Sprint"] = true,
-	["Stealth"] = true,
-	["Evasion"] = true,
-	["Blind"] = true,
-	["Kindey Shot"] = true,
-	["Cold Blood"] = true,
-	["Shadow Step"] = true,
+local spells = {
+	undead = {
+		-- Undead
+		"Will of the Forsaken",
+		"Cannibalize",
+	},
+	NightElf = {
+		"Shadowmeld",
+	},
+	Rogue = {
+		-- Rogue
+		"Riposte",
+		"Gouge",
+		"Blade Flurry",
+		"Adrenaline Rush",
+		"Killing Spree",
+		"Kick",
+		"Vanish",
+		"Sprint",
+		"Stealth",
+		"Evasion",
+		"Blind",
+		"Kindey Shot",
+		"Cold Blood",
+		"Shadow Step"
+	},
+	Hunter = {
+		"Arcane Shot",
+		"Multi Shot",
+		"Concussive Shot",
+		"Intimidation",
+		"Flare",
+		"Feign Death",
+		"Disengage",
+		"Bestial Wrath",
+		"Viper Sting",
+		"Deterrence",
+		"Frost Trap",
+		"Freezing Trap",
+		"Snake Trap",
+		"Kill Command",
+		"Explosive Shot",
+		"Aimed Shot",
+		"Scare Beast",
+		"Tranqulizing Shot"
+	},
+	warrior = {
+		"Charge",
+		"Intercept",
+		"Overpower",
+		"Bloodrage",
+		"Beserker Rage",
+		"Mortal Strike",
+		"Revenge",
+		"Shield Bash",
+		"Shield Block",
+	},
 }
+
+if spells[UnitClass("player")] then
+	addon.spells = {}
+	for k, spell in pairs(spells[UnitClass("player")]) do
+		addon.spells[spell] = true
+	end
+end
+
+if spells[UnitRace("player")] then
+	addon.spells = addon.spells or {}
+	for k, spell in pairs(select(2, spells[UnitRace("player")])) do
+		addon.spells[spell] = true
+	end
+end
+
+if not addon.spells then return end
+
+spells = nil
 
 addon:SetScript("OnEvent", function(self, event, ...)
 	return self[event](self, ...)
 end)
 
 addon:RegisterEvent("SPELL_UPDATE_COOLDOWN")
+addon:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
+
+local cast = {}
+
+function addon:COMBAT_LOG_EVENT_UNFILTERED(timeStamp, event, sourceGUID, sourceName, sourceFlags, destGUID, destName, destFlags, spellId, spellName)
+	if sourceName == playerName and spellName and self.spells[spellName] then
+		cast[spellName] = true
+	end
+end
 
 function addon:SPELL_UPDATE_COOLDOWN()
+	local start, duration, enabled
 	for spell in pairs(self.spells) do
-		local start, duration, enabled = GetSpellCooldown(spell)
-		if enabled == 1 and duration > 1.5 then
+		start, duration, enabled = GetSpellCooldown(spell)
+		if enabled == 1 and duration > 1.5 and cast[spell] then
 			self.watched[spell] = start + duration
 		end
 	end
@@ -93,6 +162,7 @@ addon:SetScript("OnUpdate", function(self, elapsed)
 		if time > finish then
 			table.insert(self.queue, spell)
 			self.watched[spell] = nil
+			cast[spell] = nil
 		end
 	end
 
