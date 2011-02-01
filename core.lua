@@ -42,31 +42,41 @@ local size = 175
 local alpha = 0.9
 
 local MAX_ICONS = 2
+addon.queue = {}
+addon.watched = {}
+addon.cast = {}
 
+local hide
 local iconPool = setmetatable({}, {
 	__index = function(self, key)
-		local t = addon:CreateTexture(nil, "OVERLAY")
+		local f = CreateFrame("Frame", nil, addon)
+		local t = f:CreateTexture(nil, "OVERLAY")
 
-		t:SetScript("OnHide", function()
-			t:SetHeight(size)
-			t:SetWidth(size)
-			t:SetAlpha(0)
-			t.step = 0
-			t.running = false
+		f:SetScript("OnHide", function(self)
+			self:SetHeight(size)
+			self:SetWidth(size)
+			self:SetAlpha(0)
+			self.step = 0
+			self.running = false
 		end)
 
-		t:SetHeight(size)
-		t:SetWidth(size)
-		t:SetPoint("CENTER", UIParent, "CENTER")
-		t:SetAlpha(0)
+		f:SetPoint("CENTER", UIParent, "CENTER")
+		f:SetAlpha(0)
+		f:SetHeight(size)
+		f:SetWidth(size)
+
+		t:SetAllPoints(f)
 		t:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-		t:Hide()
 
 		t.step = 0
 		t.running = false
 
-		rawset(self, key, t)
-		return t
+		f.icon = t
+
+		f:Hide()
+
+		rawset(self, key, f)
+		return f
 	end,
 })
 
@@ -91,11 +101,9 @@ end)
 addon:RegisterEvent("SPELL_UPDATE_COOLDOWN")
 addon:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
 
-local cast = {}
-
 function addon:COMBAT_LOG_EVENT_UNFILTERED(timeStamp, event, sourceGUID, sourceName, sourceFlags, destGUID, destName, destFlags, spellId, spellName)
-	if(sourceName == playerName and spellName and spells[spellName]) then
-		cast[spellName] = true
+	if(sourceName == playerName and spellName and ns.spells[spellName]) then
+		self.cast[spellName] = true
 	end
 end
 
@@ -103,30 +111,45 @@ function addon:SPELL_UPDATE_COOLDOWN()
 	local start, duration, enabled
 	local time = GetTime()
 
-	for spell in next, cast do
+	for spell in pairs(self.cast) do
 		start, duration, enabled = GetSpellCooldown(spell)
 
-		if(enabled == 1 and duration > 1.5) then
-			self.watched[spell] = start + duration
-		elseif(self.watched[spell] or (start + duration) > time) then
-			table.insert(self.queue, spell)
+		local expire = start + duration - 0.5
+		if(enabled == 1 and duration > 1.5 and expire > time and not self.watched[spell]) then
+			-- On Cooldown
+			self.watched[spell] = expire
+		elseif(self.watched[spell] and self.watched[spell] ~= expire) then
+			-- Was on cooldown, not anymore
+			self.watched[spell] = 0
+			self.cast[spell] = nil
 		end
 	end
 end
 
 local icons = 0
 addon:SetScript("OnUpdate", function(self, elapsed)
+	-- Dont want to do this here :(
+	local time = GetTime()
+	for spell, expire in pairs(self.watched) do
+		if(expire < time) then
+			table.insert(self.queue, spell)
+			self.watched[spell] = nil
+		end
+	end
+
 	-- Are we running allready?
 	for id, spell in pairs(self.queue) do
 		local icon = iconPool[spell]
 		if(icon.step > steps) then
 			-- Finished
-			table.remove(self.queue, id)
+			self.queue[id] = nil
 			icon:Hide()
 			icons = icons - 1
 		elseif(icons < MAX_ICONS) then
 			icons = icons + 1
+			-- This is wrong, needs to be cyclic
 			icon:SetFrameLevel(MAX_ICONS - icons)
+			icon.icon:SetTexture(texCache[spell])
 			icon:Show()
 		end
 		if(icon:IsShown()) then
