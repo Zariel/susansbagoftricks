@@ -61,8 +61,7 @@ local temp = {
 		"Shield Block",
 	},
 	Paladin = {
-		"Judgment of Light",
-		"Judgment of Wisdom",
+		"Judgement",
 		"Crusader Strike",
 		"Holy Shock",
 		"Lay on Hands",
