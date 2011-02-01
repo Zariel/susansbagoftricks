@@ -26,6 +26,8 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.]]
 local parent, ns = ...
 local addon = ns.addon
 
+if(not next(ns.spells)) then return end
+
 local GetTime = GetTime
 local GetSpellCooldown = GetSpellCooldown
 local GetSpellInfo = GetSpellInfo
@@ -127,6 +129,7 @@ function addon:SPELL_UPDATE_COOLDOWN()
 end
 
 local icons = 0
+local count = 0
 addon:SetScript("OnUpdate", function(self, elapsed)
 	-- Dont want to do this here :(
 	local time = GetTime()
@@ -144,13 +147,14 @@ addon:SetScript("OnUpdate", function(self, elapsed)
 			-- Finished
 			self.queue[id] = nil
 			icon:Hide()
-			icons = icons - 1
-		elseif(icons < MAX_ICONS) then
-			icons = icons + 1
-			-- This is wrong, needs to be cyclic
-			icon:SetFrameLevel(MAX_ICONS - icons)
+			count = count - 1
+		elseif(count < MAX_ICONS) then
+			-- is now cyclic, when icons = 3 (4 icons) 3 % 3 = 0
+			icon:SetFrameLevel(MAX_ICONS - icons % 3)
 			icon.icon:SetTexture(texCache[spell])
 			icon:Show()
+			icons = icons + 1
+			count = count + 1
 		end
 		if(icon:IsShown()) then
 			local cosine = cosineInterpolation(0, 1, modifier * icon.step)
