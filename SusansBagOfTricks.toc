@@ -1,4 +1,6 @@
-## Interface: 30100
+## Interface: 40100
 ## Author: Zariel
 
+init.lua
+spells.lua
 core.lua
