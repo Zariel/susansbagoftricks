@@ -23,107 +23,8 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.]]
 
-local temp = {
-	Undead = {
-		"Will of the Forsaken",
-		"Cannibalize",
-	},
-	NightElf = {
-		"Shadowmeld",
-	},
-	Human = {
-		"Every Man for Himself",
-	},
-	Rogue = {
-		"Riposte",
-		"Gouge",
-		"Blade Flurry",
-		"Adrenaline Rush",
-		"Killing Spree",
-		"Kick",
-		"Vanish",
-		"Sprint",
-		"Stealth",
-		"Evasion",
-		"Blind",
-		"Kindey Shot",
-		"Cold Blood",
-		"Shadow Step"
-	},
-	Hunter = {
-		"Arcane Shot",
-		"Multi Shot",
-		"Concussive Shot",
-		"Intimidation",
-		"Flare",
-		"Feign Death",
-		"Disengage",
-		"Bestial Wrath",
-		"Viper Sting",
-		"Deterrence",
-		"Frost Trap",
-		"Freezing Trap",
-		"Snake Trap",
-		"Kill Command",
-		"Explosive Shot",
-		"Aimed Shot",
-		"Scare Beast",
-		"Tranqulizing Shot",
-		"Black Arrow",
-		"Master's Call",
-	},
-	Warrior = {
-		"Charge",
-		"Intercept",
-		"Overpower",
-		"Bloodrage",
-		"Beserker Rage",
-		"Mortal Strike",
-		"Revenge",
-		"Shield Bash",
-		"Shield Block",
-	},
-	Paladin = {
-		"Judgment of Light",
-		"Judgment of Wisdom",
-		"Crusader Strike",
-		"Holy Shock",
-		"Lay on Hands",
-		"Avenger's Shield",
-		"Ardent Defender",
-		"Hammer of Righteous",
-		"Hammer of Justice",
-		"Hand of Reckoning",
-		"Guardian of the Anchient Kings",
-		"Avenging Wrath"
-	},
-	Shaman = {
-		"Thunderstorm",
-		"Chain Lightning",
-		"Frost Shock",
-		"Earth Shock",
-		"Wind Shear",
-		"Elemental Mastery",
-	},
-}
-
-local spells = {}
-do
-	local class, race = UnitClass("player"), UnitRace("player")
-	for type, v in pairs(temp) do
-		if(type == class or type == race) then
-			for i, spell in pairs(v) do
-				spells[spell] = true
-			end
-		end
-	end
-
-	if(not next(spells)) then return end
-end
-
-
-local addon = CreateFrame("Frame", nil, UIParent)
-local t = addon:CreateTexture(nil, "OVERLAY")
+local parent, ns = ...
+local addon = ns.addon
 
 local GetTime = GetTime
 local GetSpellCooldown = GetSpellCooldown
@@ -134,31 +35,54 @@ local select = select
 
 local playerName = UnitName("player")
 
-local size = 175
-local alpha = 0.85
-
 local steps = 50
 local modifier = 1 / steps
 
+local size = 175
+local alpha = 0.9
+
+local MAX_ICONS = 2
+
+local iconPool = setmetatable({}, {
+	__index = function(self, key)
+		local t = addon:CreateTexture(nil, "OVERLAY")
+
+		t:SetScript("OnHide", function()
+			t:SetHeight(size)
+			t:SetWidth(size)
+			t:SetAlpha(0)
+			t.step = 0
+			t.running = false
+		end)
+
+		t:SetHeight(size)
+		t:SetWidth(size)
+		t:SetPoint("CENTER", UIParent, "CENTER")
+		t:SetAlpha(0)
+		t:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+		t:Hide()
+
+		t.step = 0
+		t.running = false
+
+		rawset(self, key, t)
+		return t
+	end,
+})
+
+local texCache = setmetatable({}, {
+	__mode = "k",
+	__index = function(self, spell)
+		local tex = select(3, GetSpellInfo(spell))
+		rawset(self, spell, tex)
+		return tex
+	end,
+})
+
 -- Taken from oPanel ~~
-local cos = math.cos
 local cosineInterpolation = function(y1, y2, mu)
 	return y1 + (y2 - y1) * (1 - cos(pi * mu)) / 2
 end
-
-t:SetHeight(size)
-t:SetWidth(size)
-t:SetPoint("CENTER", UIParent, "CENTER")
-t:SetAlpha(0)
-t:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-t:Hide()
-
-addon.icon = t
-
-addon.queue = {}
-addon.running = false
-addon.watched = {}
-addon.timer = 0
 
 addon:SetScript("OnEvent", function(self, event, ...)
 	return self[event](self, ...)
@@ -169,15 +93,6 @@ addon:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
 
 local cast = {}
 
-local texCache = setmetatable({}, {
-	__mode = "k",
-	__index = function(self, spell)
-		local text = select(3, GetSpellInfo(spell))
-		rawset(self, spell, text)
-		return text
-	end,
-})
-
 function addon:COMBAT_LOG_EVENT_UNFILTERED(timeStamp, event, sourceGUID, sourceName, sourceFlags, destGUID, destName, destFlags, spellId, spellName)
 	if(sourceName == playerName and spellName and spells[spellName]) then
 		cast[spellName] = true
@@ -186,57 +101,40 @@ end
 
 function addon:SPELL_UPDATE_COOLDOWN()
 	local start, duration, enabled
+	local time = GetTime()
+
 	for spell in next, cast do
 		start, duration, enabled = GetSpellCooldown(spell)
 
 		if(enabled == 1 and duration > 1.5) then
 			self.watched[spell] = start + duration
+		elseif(self.watched[spell] or (start + duration) > time) then
+			table.insert(self.queue, spell)
 		end
 	end
 end
 
-local time
-local cosine = 0
-local step = 0
-
+local icons = 0
 addon:SetScript("OnUpdate", function(self, elapsed)
-	-- Update watched timers
-	-- this can cause problems if a spell comes off cooldown before we expect
-	-- it, ie explosion shot from Lock N Load
-	time = GetTime()
-	for spell, finish in next, self.watched do
-		-- Pre empt faster plx
-		if(time >= (finish - 0.5)) then
-			self.queue[#self.queue + 1] = { spell, time }
-
-			self.watched[spell] = nil
-			cast[spell] = nil
-		end
-	end
-
 	-- Are we running allready?
-	if(self.running) then
-		if(step > steps) then
-			self.icon:Hide()
-			self.icon:SetAlpha(0)
-			self.icon:SetHeight(size)
-			self.icon:SetHeight(size)
-			self.running = false
-			step = 0
-		else
-			cosin = cosineInterpolation(0, 1, modifier * step)
-			self.icon:SetHeight(cosin * size)
-			self.icon:SetWidth(cosin * size)
-			self.icon:SetAlpha(cosin * alpha)
-			step = step + 1
-			return
+	for id, spell in pairs(self.queue) do
+		local icon = iconPool[spell]
+		if(icon.step > steps) then
+			-- Finished
+			table.remove(self.queue, id)
+			icon:Hide()
+			icons = icons - 1
+		elseif(icons < MAX_ICONS) then
+			icons = icons + 1
+			icon:SetFrameLevel(MAX_ICONS - icons)
+			icon:Show()
+		end
+		if(icon:IsShown()) then
+			local cosine = cosineInterpolation(0, 1, modifier * icon.step)
+			icon:SetHeight(cosine * size)
+			icon:SetWidth(cosine * size)
+			icon:SetAlpha(cosine * alpha)
+			icon.step = icon.step + 1
 		end
 	end
-
-	if(#self.queue == 0) then return end
-	table.sort(self.queue, function(a, b) return a[2] < b[2] end)
-	local spell = table.remove(self.queue, 1)[1]
-	self.icon:SetTexture(texCache[spell])
-	self.running = true
-	self.icon:Show()
 end)
