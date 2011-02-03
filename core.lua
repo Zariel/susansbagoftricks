@@ -37,13 +37,13 @@ local select = select
 
 local playerName = UnitName("player")
 
-local steps = 50
+local steps = 75
 local modifier = 1 / steps
 
 local size = 175
 local alpha = 0.9
 
-local MAX_ICONS = 2
+local MAX_ICONS = 1
 addon.queue = {}
 addon.watched = {}
 addon.cast = {}
@@ -51,6 +51,7 @@ addon.cast = {}
 local hide
 local iconPool = setmetatable({}, {
 	__index = function(self, key)
+		if(not key) then return end
 		local f = CreateFrame("Frame", nil, addon)
 		local t = f:CreateTexture(nil, "OVERLAY")
 
@@ -129,7 +130,6 @@ function addon:SPELL_UPDATE_COOLDOWN()
 end
 
 local icons = 0
-local count = 0
 addon:SetScript("OnUpdate", function(self, elapsed)
 	-- Dont want to do this here :(
 	local time = GetTime()
@@ -141,27 +141,27 @@ addon:SetScript("OnUpdate", function(self, elapsed)
 	end
 
 	-- Are we running allready?
-	for id, spell in pairs(self.queue) do
+	for id = 1, #self.queue do
+		local spell = self.queue[id]
 		local icon = iconPool[spell]
-		if(icon.step > steps) then
-			-- Finished
-			self.queue[id] = nil
-			icon:Hide()
-			count = count - 1
-		elseif(count < MAX_ICONS) then
-			-- is now cyclic, when icons = 3 (4 icons) 3 % 3 = 0
-			icon:SetFrameLevel(MAX_ICONS - icons % 3)
-			icon.icon:SetTexture(texCache[spell])
-			icon:Show()
-			icons = icons + 1
-			count = count + 1
-		end
-		if(icon:IsShown()) then
-			local cosine = cosineInterpolation(0, 1, modifier * icon.step)
-			icon:SetHeight(cosine * size)
-			icon:SetWidth(cosine * size)
-			icon:SetAlpha(cosine * alpha)
-			icon.step = icon.step + 1
+		if(icon) then
+			if(icon.step > steps) then
+				-- Finished
+				table.remove(self.queue, id)
+				icon:Hide()
+			elseif(id < 2) then
+				icon.icon:SetTexture(texCache[spell])
+				icon:Show()
+			else
+				return
+			end
+			if(icon:IsShown()) then
+				local cosine = cosineInterpolation(0, 1, modifier * icon.step)
+				icon:SetHeight(cosine * size)
+				icon:SetWidth(cosine * size)
+				icon:SetAlpha(cosine * alpha)
+				icon.step = icon.step + 1
+			end
 		end
 	end
 end)
